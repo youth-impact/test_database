@@ -19,7 +19,7 @@ jobs:
         with:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
-      - run: Rscript code/population_columns.R && Rscript code/update_views.R
+      - run: Rscript code/populate_columns.R && Rscript code/update_views.R
       - name: Send email
         uses: dawidd6/action-send-mail@v3
         with:
