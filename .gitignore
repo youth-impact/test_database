@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+scto_auth.txt
+scto_data

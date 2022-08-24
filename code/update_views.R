@@ -1,66 +1,56 @@
-library('data.table')
-library('glue')
-library('googledrive')
-library('googlesheets4')
-# library('rsurveycto')
-library('yaml')
-
-paramsDir = 'params'
-outputDir = 'output'
-
-if (!dir.exists(outputDir)) dir.create(outputDir)
-
-params = read_yaml(file.path(paramsDir, 'params.yaml'))
+source(file.path('code', 'setup.R'))
 
 ########################################
 
-if (Sys.getenv('GOOGLE_TOKEN') == '') {
-  drive_auth()
-} else {
-  drive_auth(path = Sys.getenv('GOOGLE_TOKEN'))}
-
-gs4_auth(token = drive_token())
+facilitators = scto_read(auth, 'cases_facilitators')
+groups = setDT(read_sheet(params$file_id, 'groups'))
+columns = setDT(read_sheet(params$file_id, 'show_columns'))
+viewers = setDT(read_sheet(params$file_id, 'viewers'))
 
 ########################################
 
-facilitators = setDT(read_sheet(params$master_file_id, 'facilitators'))
-viewers = setDT(read_sheet(params$master_file_id, 'viewers'))
-pgs = setDT(read_sheet(params$master_file_id, 'perm_groups'))
+setorderv(groups, 'group_id')
+viewers = unique(viewers)
+
+if (any(apply(groups, 2, uniqueN) != nrow(groups))) {
+  stop('At least one column of the `groups` sheet contains duplicated values.')}
+
+if (!identical(colnames(facilitators), columns$column_name)) {
+  stop(paste('Columns of `facilitators` are not identical to',
+             'rows of `column_name` in the `show_columns` sheet.'))}
+
+if (!identical(groups$group_id, colnames(columns)[2:ncol(columns)])) {
+  stop(paste('Rows of `group_id` in the `groups` sheet inconsistent with',
+             'column names (B column onward) in the `show_columns` sheet.'))}
+
+if (any(is.na(columns[, !'column_name']))) {
+  stop('The `show_columns` sheet contains missing values.')}
+
+if (!all(as.matrix(columns[, !'column_name']) %in% 0:1)) {
+  stop('The `show_columns` sheet contains values other than 0 and 1.')}
 
 ########################################
 
-for (i in 1:nrow(pgs)) {
-  file_id = as_id(pgs$file_id[i])
-  group_id = pgs$perm_group_id[i]
+file_pre = 'facilitator_database_view_'
 
-  # rename the file
-  drive_rename(
-    file_id, paste0('facilitator_db_prototype_', group_id), overwrite = TRUE)
+for (i in 1:nrow(groups)) {
+  file_id = as_id(groups$file_id[i])
+  group_id_now = groups$group_id[i]
 
-  # update the contents
-  facilitators_now = facilitators[perm_group_id == group_id]
-  write_sheet(facilitators_now[, !'perm_group_id'], file_id, sheet = 1)
+  # rename file
+  drive_rename(file_id, paste0(file_pre, group_id_now), overwrite = TRUE)
+
+  # update contents
+  cols_now = columns$column_name[columns[[group_id_now]] == 1]
+  facs = facilitators[, ..cols_now]
+  write_sheet(facs, file_id, sheet = 1)
   range_autofit(file_id, sheet = 1)
 
-  # remove all reader permissions
-  a1 = drive_reveal(file_id, 'permissions')
-  a2 = a1$permissions_resource[[1L]]$permissions
-  a3 = data.table(
-    email = sapply(a2, `[[`, 'emailAddress'),
-    user_id = sapply(a2, `[[`, 'id'),
-    role = sapply(a2, `[[`, 'role'))
-  viewers_old = a3[role == 'reader']
+  # update permissions
+  viewers_now = viewers[group_id == group_id_now]
+  viewers_old = drive_share_get(file_id)[role == 'reader']
+  viewers_add = viewers_now[!viewers_old, on = c('viewer_email' = 'email')]
+  viewers_del = viewers_old[!viewers_now, on = c('email' = 'viewer_email')]
 
-  for (user_id in viewers_old$user_id) {
-    # https://developers.google.com/drive/api/v3/reference/permissions/delete
-    req = gargle::request_build(
-      path = 'drive/v3/files/{fileId}/permissions/{permissionId}',
-      method = 'DELETE',
-      params = list(fileId = file_id, permissionId = user_id),
-      token = drive_token())
-    res = request_make(req)}
-
-  # add reader permissions
-  viewers_now = viewers[perm_group_id == group_id]
-  for (email in viewers_now$viewer_email) {
-    drive_share(file_id, role = 'reader', type = 'user', emailAddress = email)}}
+  drive_share_add(file_id, viewers_add$viewer_email)
+  drive_share_remove(file_id, viewers_del$user_id)}
