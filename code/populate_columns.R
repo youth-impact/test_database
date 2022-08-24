@@ -24,14 +24,18 @@ columns_new = data.table(
 
 ########################################
 
+sheet_old = 'show_columns_old'
+
 if (identical(columns_old$column_name, columns_new$column_name) &&
     identical(colnames(columns_old), colnames(columns_new))) {
   needs_update = 'no'
-  sheet_delete(file_id, sheet = 'show_columns_old')
+  sheet_delete(file_id, sheet = sheet_old)
 } else {
   needs_update = 'yes'
-  write_sheet(columns_old, file_id, sheet = 'show_columns_old')
-  range_autofit(file_id, sheet = 'show_columns_old')
+  if (!(sheet_old %in% sheet_names(file_id))) {
+    sheet_add(file_id, sheet_old)}
+  write_sheet(columns_old, file_id, sheet = sheet_old)
+  range_autofit(file_id, sheet = sheet_old)
   write_sheet(columns_new, file_id, sheet = 'show_columns')
   range_autofit(file_id, sheet = 'show_columns')}
 
