@@ -29,7 +29,8 @@ sheet_old = 'show_columns_old'
 if (identical(columns_old$column_name, columns_new$column_name) &&
     identical(colnames(columns_old), colnames(columns_new))) {
   needs_update = 'no'
-  sheet_delete(file_id, sheet = sheet_old)
+  if (sheet_old %in% sheet_names(file_id)) {
+    sheet_delete(file_id, sheet = sheet_old)}
 } else {
   needs_update = 'yes'
   if (!(sheet_old %in% sheet_names(file_id))) {
