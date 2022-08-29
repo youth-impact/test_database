@@ -3,11 +3,15 @@ name: ci
 on:
   push:
     branches: 'main'
-  schedule:
-    - cron: '30 * * * *'
+  #schedule:
+  #  - cron: '30 1 * * *'
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  ci:
+  update-views:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -25,9 +29,9 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 465
-          username: ${{secrets.MAIL_USERNAME}}
-          password: ${{secrets.MAIL_PASSWORD}}
-          subject: Github Actions job result
-          to: jakejhughey@gmail.com, cryptochrome@gmail.com
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Youth Impact facilitator database
+          to: jakejhughey@gmail.com
           from: Youth Impact Automation <youthimpactautomation@gmail.com>
-          body: Build job of ${{github.repository}} completed successfully!
+          body: GitHub Actions detected a change to the facilitators dataset on SurveyCTO and has updated the Google Sheets accordingly!
