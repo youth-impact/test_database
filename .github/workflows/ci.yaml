@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  update-views:
+  ci:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -23,8 +23,9 @@ jobs:
         with:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
-      - run: Rscript code/populate_columns.R && Rscript code/update_views.R
+      - run: Rscript code/update_views.R >> $GITHUB_ENV
       - name: Send email
+        if: ${{ env.message != '0' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -34,4 +35,5 @@ jobs:
           subject: Youth Impact facilitator database
           to: jakejhughey@gmail.com
           from: Youth Impact Automation <youthimpactautomation@gmail.com>
-          body: GitHub Actions detected a change to the facilitators dataset on SurveyCTO and has updated the Google Sheets accordingly!
+          body: |
+            GitHub Actions ran and gave the following message: {{ env.message }}
