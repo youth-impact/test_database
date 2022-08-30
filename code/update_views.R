@@ -5,4 +5,3 @@ msg = tryCatch(
   error = function(e) trimws(as.character(e)))
 
 glue::glue('MESSAGE="{msg}"')
-# TODO: if msg != 0, send email via github actions
