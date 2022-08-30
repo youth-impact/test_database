@@ -164,9 +164,8 @@ update_views = function(auth, params) {
     return(msg)}
 
   # check whether anything has changed
-  tables_eq = sapply(
-    names(tables_new),
-    function(i) isTRUE(all.equal(tables_new[[i]], tables_old[[i]])))
+  tables_eq = sapply(names(tables_new), function(i) {
+    isTRUE(all.equal(tables_new[[i]], tables_old[[i]]))})
 
   if (all(tables_eq)) {
     set_status(params$main_file_url, 'No updates necessary.')
@@ -178,8 +177,7 @@ update_views = function(auth, params) {
   set_status(params$main_file_url, msg)
 
   # update the mirror file
-  mapply(
-    function(d, sheet) write_sheet(d, params$mirror_file_url, sheet),
-    tables_new, names(tables_new))
+  lapply(names(tables_new), function(i) {
+    write_sheet(tables_new[[i]], params$mirror_file_url, i)})
 
   return(msg)}
