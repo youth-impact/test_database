@@ -36,4 +36,4 @@ jobs:
           to: jakejhughey@gmail.com
           from: Youth Impact Automation <youthimpactautomation@gmail.com>
           body: |
-            GitHub Actions ran and gave the following message: {{ env.message }}
+            GitHub Actions ran and gave the following message: ${{ env.message }}
