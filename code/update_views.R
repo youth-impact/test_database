@@ -4,4 +4,4 @@ msg = tryCatch(
   update_views(auth, params),
   error = function(e) trimws(as.character(e)))
 
-glue::glue('MESSAGE={msg}')
+get_env_output(msg, params$main_file_url)

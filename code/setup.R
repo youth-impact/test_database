@@ -65,7 +65,7 @@ get_tables_validity = function(x) {
     paste('Column names of the `facilitators` sheet do not match',
           'the rows of `column_name` in the `show_columns` sheet.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
-    paste('Rows of `group_id` of the `groups` sheet do not match the',
+    paste('Values of `group_id` of the `groups` sheet do not match the',
           'column names (from C column onward) of the `show_columns` sheet.')
   } else if (anyDuplicated(x$show_columns$column_label) != 0) {
     paste('The `column_label` column of the `show_columns`',
@@ -77,6 +77,9 @@ get_tables_validity = function(x) {
   } else if (!setequal(colnames(x$viewers), viewer_cols)) {
     paste('Columns names of the `viewers` sheet are not',
           '"viewer_name", "viewer_email", and "group_id".')
+  } else if (!setequal(x$viewers$group_id, group_cols)) {
+    paste('Values of `group_id` of the `viewers` sheet',
+          'do not match those of the `groups` sheet.')
   } else {
     0}
   return(r)}
@@ -181,3 +184,11 @@ update_views = function(auth, params) {
     write_sheet(tables_new[[i]], params$mirror_file_url, i)})
 
   return(msg)}
+
+
+get_env_output = function(
+    msg, file_url, sheet = 'maintainers', colname = 'email') {
+  maintainers = read_sheet(file_url, sheet)
+  emails = paste(maintainers[[colname]], collapse = ', ')
+  r = glue::glue('MESSAGE={msg}\nEMAIL_TO={emails}')
+  return(r)}
