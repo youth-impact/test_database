@@ -217,7 +217,8 @@ update_views = function(auth, params) {
 
   # check whether anything has changed
   tables_eq = sapply(names(tables_new), function(i) {
-    isTRUE(all.equal(tables_new[[i]], tables_old[[i]]))})
+    isTRUE(all.equal(
+      tables_new[[i]], tables_old[[i]], check.attributes = FALSE))})
 
   if (all(tables_eq)) {
     set_status(params$main_file_url, 'No updates necessary.')
