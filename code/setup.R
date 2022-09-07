@@ -46,6 +46,7 @@ get_tables = function(
 
 
 get_sorting_validity = function(facilitators, sorting) {
+  sorting = copy(sorting)
   r = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
     paste('Column names of the `sorting` sheet are not',
           '"column_name" and "column_value".')
