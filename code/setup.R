@@ -35,13 +35,43 @@ set_facilitators = function(
 
 
 get_tables = function(
-    file_url, sheets = c('facilitators', 'groups', 'show_columns', 'viewers')) {
+    file_url,
+    sheets = c('facilitators', 'groups', 'show_columns', 'sorting', 'viewers')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_url, x)))
   names(tables) = sheets
   setorderv(tables$groups, 'group_id')
   tables$show_columns[is.na(column_label), column_label := column_name]
   tables$viewers = unique(tables$viewers)
   return(tables)}
+
+
+get_sorting_validity = function(facilitators, sorting) {
+  r = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
+    paste('Column names of the `sorting` sheet are not',
+          '"column_name" and "column_value".')
+  } else if (!all(sorting$column_name %in% colnames(facilitators))) {
+    paste('The `column_name` column of the `sorting` sheet contains',
+          'values that are not column names of the `facilitators` dataset.')
+  } else {
+    ast = c('*ascending*', '*descending*')
+    n = table(sorting[column_value %in% ast]$column_name)
+
+    d1 = sorting[!(column_value %in% ast)]
+    cols = unique(d1$column_name)
+    d2 = unique(melt(
+      facilitators[, ..cols], measure.vars = cols, variable.factor = FALSE,
+      variable.name = 'column_name', value.name = 'column_value'))
+
+    if (any(n > 1)) {
+      paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
+            'is not the only `column_value` for a given `column_name`.')
+    } else if (nrow(fsetdiff(d1, d2)) > 0) {
+      paste('The `sorting` sheet contains combinations of `column_name` and',
+            '`column_value` not present in the `facilitators` dataset.')
+    } else {
+      0}}
+
+  return(r)}
 
 
 get_tables_validity = function(x) {
@@ -62,8 +92,8 @@ get_tables_validity = function(x) {
     paste('The first two columns of the `show_columns` sheet',
           'are not named "column_name" and "column_label".')
   } else if (!setequal(colnames(x$facilitators), x$show_columns$column_name)) {
-    paste('Column names of the `facilitators` sheet do not match',
-          'the rows of `column_name` in the `show_columns` sheet.')
+    paste('Values of `column_name` in the `show_columns` sheet do not match',
+          'the column names of the `facilitators` dataset.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
     paste('Values of `group_id` of the `groups` sheet do not match the',
           'column names (from C column onward) of the `show_columns` sheet.')
@@ -75,13 +105,13 @@ get_tables_validity = function(x) {
   } else if (!all(as.matrix(x$show_columns[, ..group_cols]) %in% 0:1)) {
     'The `show_columns` sheet contains values other than 0 and 1.'
   } else if (!setequal(colnames(x$viewers), viewer_cols)) {
-    paste('Columns names of the `viewers` sheet are not',
+    paste('Column names of the `viewers` sheet are not',
           '"viewer_name", "viewer_email", and "group_id".')
   } else if (!setequal(x$viewers$group_id, group_cols)) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
   } else {
-    0}
+    get_sorting_validity(x$facilitators, x$sorting)}
   return(r)}
 
 
@@ -123,7 +153,26 @@ drive_share_remove = function(file_id, user_ids) {
 
 ########################################
 
+sort_facilitators = function(facilitators, sorting) {
+  facs = copy(facilitators)
+
+  ast = c('*ascending*', '*descending*')
+  cols_tmp = unique(sorting[!(column_value %in% ast)]$column_name)
+  for (col in cols_tmp) {
+    levs_tmp = sorting[column_name == col]$column_value
+    levs = c(levs_tmp, setdiff(unique(facs[[col]]), levs_tmp))
+    facs[, y := factor(y, levs), env = list(y = col)]}
+
+  v = sorting[
+    , .(ord = 1 - 2 * any(column_value == '*descending*')),
+    by = column_name]
+  setorderv(facs, v$column_name, v$ord)
+  return(facs)}
+
+
 set_views = function(x, file_prefix = 'facilitator_database_view_') {
+  facs = sort_facilitators(x$facilitators, x$sorting)
+
   for (i in 1:nrow(x$groups)) {
     file_id = as_id(x$groups$file_url[i])
     group_id_now = x$groups$group_id[i]
@@ -134,10 +183,10 @@ set_views = function(x, file_prefix = 'facilitator_database_view_') {
     # update contents
     idx = x$show_columns[[group_id_now]] == 1
     cols_now = x$show_columns$column_name[idx]
-    facs = x$facilitators[, ..cols_now]
-    setnames(facs, cols_now, x$show_columns$column_label[idx])
+    facs_now = facs[, ..cols_now]
+    setnames(facs_now, cols_now, x$show_columns$column_label[idx])
 
-    write_sheet(facs, file_id, sheet = 1)
+    write_sheet(facs_now, file_id, sheet = 1)
     range_autofit(file_id, sheet = 1)
 
     # update permissions
