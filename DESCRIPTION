@@ -17,4 +17,5 @@ Imports:
   rsurveycto,
   yaml
 Remotes:
+  Rdatatable/data.table@*release,
   youth-impact/rsurveycto
