@@ -1,4 +1,5 @@
 library('data.table')
+library('glue')
 library('googledrive')
 library('googlesheets4')
 library('rsurveycto')
@@ -149,7 +150,7 @@ drive_share_remove = function(file_id, user_ids) {
       method = 'DELETE',
       params = list(fileId = file_id, permissionId = user_id),
       token = drive_token())
-    res = request_make(req)}
+    res = googledrive::request_make(req)}
   invisible(drive_get(id = file_id))}
 
 ########################################
@@ -227,7 +228,8 @@ update_views = function(auth, params) {
 
   # update the views
   set_views(tables_new)
-  msg = 'Successfully updated views.'
+  msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
+  msg = glue('Successfully updated views based on changes to {msg_end}.')
   set_status(params$main_file_url, msg)
 
   # update the mirror file
@@ -241,5 +243,5 @@ get_env_output = function(
     msg, file_url, sheet = 'maintainers', colname = 'email') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
-  r = glue::glue('MESSAGE={msg}\nEMAIL_TO={emails}')
+  r = glue('MESSAGE={msg}\nEMAIL_TO={emails}')
   return(r)}
