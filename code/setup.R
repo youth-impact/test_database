@@ -153,6 +153,51 @@ drive_share_remove = function(file_id, user_ids) {
     res = googledrive::request_make(req)}
   invisible(drive_get(id = file_id))}
 
+
+get_background = function(file_id, sheet, range, nonwhite = TRUE) {
+  bg = setDT(range_read_cells(
+    params$main_file_url, sheet, range, cell_data = 'full'))
+  for (p in c('red', 'green', 'blue')) {
+    y = lapply(bg$cell, function(z) z$effectiveFormat$backgroundColor[[p]])
+    y = sapply(y, function(z) if (is.null(z)) 0 else z)
+    set(bg, j = p, value = y)}
+  bg[, cell := NULL][]
+  if (nonwhite) bg = bg[!(red == 1 & green == 1 & blue == 1)]
+  return(bg)}
+
+########################################
+
+set_background = function(file_id, background) {
+  # only for setting one color per entire column
+  bod_base = '{
+  "repeatCell": {
+    "range": {
+      "startColumnIndex": (start_col),
+      "endColumnIndex": (start_col + 1)
+    },
+    "cell": {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "red": (red),
+          "green": (green),
+          "blue": (blue)
+        }
+      }
+    },
+    "fields": "userEnteredFormat.backgroundColor"
+    }
+  }'
+
+  background = copy(background)
+  background[, bod := glue(bod_base, .envir = .SD, .open = '(', .close = ')')]
+  bod = sprintf('{"requests": [%s]}', paste(background$bod, collapse = ',\n'))
+
+  req = googlesheets4::request_generate(
+    'sheets.spreadsheets.batchUpdate', list(spreadsheetId = file_id))
+  req$body = bod
+  res = googlesheets4::request_make(req)
+  invisible(res)}
+
 ########################################
 
 sort_facilitators = function(facilitators, sorting) {
@@ -172,8 +217,9 @@ sort_facilitators = function(facilitators, sorting) {
   return(facs)}
 
 
-set_views = function(x, file_prefix = 'facilitator_database_view_') {
+set_views = function(x, bg, file_prefix = 'facilitator_database_view_') {
   facs = sort_facilitators(x$facilitators, x$sorting)
+  bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
   for (i in 1:nrow(x$groups)) {
     file_id = as_id(x$groups$file_url[i])
@@ -190,6 +236,11 @@ set_views = function(x, file_prefix = 'facilitator_database_view_') {
 
     write_sheet(facs_now, file_id, sheet = 1)
     range_autofit(file_id, sheet = 1)
+
+    # update formatting
+    bg_now = bg[column_name %in% cols_now]
+    bg_now[, start_col := match(column_name, cols_now) - 1L]
+    set_background(file_id, bg_now)
 
     # update permissions
     viewers_now = x$viewers[group_id == group_id_now]
@@ -227,7 +278,8 @@ update_views = function(auth, params) {
     return(0)}
 
   # update the views
-  set_views(tables_new)
+  bg = get_background(params$main_file_url, 'show_columns', 'A2:A')
+  set_views(tables_new, bg)
   msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
   msg = glue('Successfully updated views based on changes to {msg_end}.')
   set_status(params$main_file_url, msg)
