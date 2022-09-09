@@ -8,7 +8,7 @@ function atEdit(e) {
   var sheet_now = e.range.getSheet().getName();
 
   if (sheets.includes(sheet_now)) {
-    var s = e.source.getSheetByName('webhook')
+    var s = e.source.getSheetByName('github')
     var repo_owner = s.getRange('A2').getValue()
     var repo_name = s.getRange('B2').getValue()
     var url = 'https://api.github.com/repos/' + repo_owner + '/' + repo_name + '/dispatches';

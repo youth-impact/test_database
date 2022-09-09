@@ -46,6 +46,21 @@ get_tables = function(
   return(tables)}
 
 
+compare_tables = function(x, y) {
+  # dataset, groups, show_columns, sorting, viewers
+  ignore_row_order = c(TRUE, TRUE, FALSE, FALSE, TRUE)
+  ignore_col_order = c(TRUE, TRUE, FALSE, TRUE, TRUE)
+  eq = sapply(1:length(x), function(i) {
+    isTRUE(all.equal(
+      x[[i]], y[[i]], check.attributes = FALSE,
+      ignore.col.order = ignore_col_order[i],
+      ignore.row.order = ignore_row_order[i]))})
+  names(eq) = names(x)
+  # eq = sapply(names(x), function(i) {
+  #   isTRUE(all.equal(x[[i]], y[[i]], check.attributes = FALSE))})
+  return(eq)}
+
+
 get_sorting_validity = function(sorting, dataset, dataset_id) {
   sorting = copy(sorting)
   r = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
@@ -255,6 +270,7 @@ set_views = function(x, bg, file_prefix) {
 
   invisible(0)}
 
+########################################
 
 update_views = function(auth, params) {
   # update the main file with the latest version of the dataset from surveycto
@@ -271,10 +287,7 @@ update_views = function(auth, params) {
     return(msg)}
 
   # check whether anything has changed
-  tables_eq = sapply(names(tables_new), function(i) {
-    isTRUE(all.equal(
-      tables_new[[i]], tables_old[[i]], check.attributes = FALSE))})
-
+  tables_eq = compare_tables(tables_new, tables_old)
   if (all(tables_eq)) {
     set_status(params$main_file_url, 'No updates necessary.')
     return(0)}
