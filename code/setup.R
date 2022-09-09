@@ -209,8 +209,8 @@ sort_dataset = function(d, sorting) {
   cols_tmp = unique(sorting[!(column_value %in% ast)]$column_name)
   for (col in cols_tmp) {
     levs_tmp = sorting[column_name == col]$column_value
-    levs = c(levs_tmp, setdiff(unique(facs[[col]]), levs_tmp))
-    facs[, y := factor(y, levs), env = list(y = col)]}
+    levs = c(levs_tmp, setdiff(unique(d[[col]]), levs_tmp))
+    d[, y := factor(y, levs), env = list(y = col)]}
 
   v = sorting[
     , .(ord = 1 - 2 * any(column_value == '*descending*')),
