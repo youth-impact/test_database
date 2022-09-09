@@ -219,7 +219,7 @@ sort_dataset = function(d, sorting) {
   return(d)}
 
 
-set_views = function(x, bg, file_prefix = 'facilitator_database_view_') {
+set_views = function(x, bg, file_prefix) {
   dataset = sort_dataset(x[[1L]], x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
@@ -281,7 +281,7 @@ update_views = function(auth, params) {
 
   # update the views
   bg = get_background(params$main_file_url, 'show_columns', 'A2:A')
-  set_views(tables_new, bg)
+  set_views(tables_new, bg, params$view_file_prefix)
   msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
   msg = glue('Successfully updated views based on changes to {msg_end}.')
   set_status(params$main_file_url, msg)
