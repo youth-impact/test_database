@@ -29,15 +29,15 @@ auth = scto_auth(auth_file)
 
 ########################################
 
-set_facilitators = function(
-    auth, dataset_id, file_url, sheet = 'facilitators') {
-  facilitators = scto_read(auth, dataset_id)
-  write_sheet(facilitators, file_url, sheet)}
+set_dataset = function(auth, dataset_id, file_url) {
+  d = scto_read(auth, dataset_id)
+  write_sheet(d, file_url, dataset_id)}
 
 
 get_tables = function(
-    file_url,
-    sheets = c('facilitators', 'groups', 'show_columns', 'sorting', 'viewers')) {
+    file_url, dataset_id,
+    view_sheets = c('groups', 'show_columns', 'sorting', 'viewers')) {
+  sheets = c(dataset_id, view_sheets)
   tables = lapply(sheets, function(x) setDT(read_sheet(file_url, x)))
   names(tables) = sheets
   setorderv(tables$groups, 'group_id')
@@ -46,14 +46,14 @@ get_tables = function(
   return(tables)}
 
 
-get_sorting_validity = function(facilitators, sorting) {
+get_sorting_validity = function(sorting, dataset, dataset_id) {
   sorting = copy(sorting)
   r = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
     paste('Column names of the `sorting` sheet are not',
           '"column_name" and "column_value".')
-  } else if (!all(sorting$column_name %in% colnames(facilitators))) {
-    paste('The `column_name` column of the `sorting` sheet contains',
-          'values that are not column names of the `facilitators` dataset.')
+  } else if (!all(sorting$column_name %in% colnames(dataset))) {
+    glue('The `column_name` column of the `sorting` sheet contains ',
+          'values that are not column names of the `{dataset_id}` dataset.')
   } else {
     ast = c('*ascending*', '*descending*')
     n = table(sorting[column_value %in% ast]$column_name)
@@ -61,15 +61,15 @@ get_sorting_validity = function(facilitators, sorting) {
     d1 = sorting[!(column_value %in% ast)]
     cols = unique(d1$column_name)
     d2 = unique(melt(
-      facilitators[, ..cols], measure.vars = cols, variable.factor = FALSE,
+      dataset[, ..cols], measure.vars = cols, variable.factor = FALSE,
       variable.name = 'column_name', value.name = 'column_value'))
 
     if (any(n > 1)) {
       paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
             'is not the only `column_value` for a given `column_name`.')
     } else if (nrow(fsetdiff(d1, d2)) > 0) {
-      paste('The `sorting` sheet contains combinations of `column_name` and',
-            '`column_value` not present in the `facilitators` dataset.')
+      glue('The `sorting` sheet contains combinations of `column_name` and ',
+            '`column_value` not present in the `{dataset_id}` dataset.')
     } else {
       0}}
 
@@ -77,6 +77,7 @@ get_sorting_validity = function(facilitators, sorting) {
 
 
 get_tables_validity = function(x) {
+  dataset_id = names(x)[1L]
   cols = c('column_name', 'column_label')
   group_cols = setdiff(colnames(x$show_columns), cols)
   viewer_cols = c('viewer_name', 'viewer_email', 'group_id')
@@ -109,11 +110,12 @@ get_tables_validity = function(x) {
   } else if (!setequal(colnames(x$viewers), viewer_cols)) {
     paste('Column names of the `viewers` sheet are not',
           '"viewer_name", "viewer_email", and "group_id".')
-  } else if (!setequal(x$viewers$group_id, group_cols)) {
+  # } else if (!setequal(x$viewers$group_id, group_cols)) {
+  } else if (!all(x$viewers$group_id %in% group_cols)) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
   } else {
-    get_sorting_validity(x$facilitators, x$sorting)}
+    get_sorting_validity(x$sorting, x[[1L]], dataset_id)}
   return(r)}
 
 
@@ -200,8 +202,8 @@ set_background = function(file_id, background) {
 
 ########################################
 
-sort_facilitators = function(facilitators, sorting) {
-  facs = copy(facilitators)
+sort_dataset = function(d, sorting) {
+  d = copy(d)
 
   ast = c('*ascending*', '*descending*')
   cols_tmp = unique(sorting[!(column_value %in% ast)]$column_name)
@@ -213,12 +215,12 @@ sort_facilitators = function(facilitators, sorting) {
   v = sorting[
     , .(ord = 1 - 2 * any(column_value == '*descending*')),
     by = column_name]
-  setorderv(facs, v$column_name, v$ord)
-  return(facs)}
+  setorderv(d, v$column_name, v$ord)
+  return(d)}
 
 
 set_views = function(x, bg, file_prefix = 'facilitator_database_view_') {
-  facs = sort_facilitators(x$facilitators, x$sorting)
+  dataset = sort_dataset(x[[1L]], x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
   for (i in 1:nrow(x$groups)) {
@@ -231,10 +233,10 @@ set_views = function(x, bg, file_prefix = 'facilitator_database_view_') {
     # update contents
     idx = x$show_columns[[group_id_now]] == 1
     cols_now = x$show_columns$column_name[idx]
-    facs_now = facs[, ..cols_now]
-    setnames(facs_now, cols_now, x$show_columns$column_label[idx])
+    dataset_now = dataset[, ..cols_now]
+    setnames(dataset_now, cols_now, x$show_columns$column_label[idx])
 
-    write_sheet(facs_now, file_id, sheet = 1)
+    write_sheet(dataset_now, file_id, sheet = 1)
     range_autofit(file_id, sheet = 1)
 
     # update formatting
@@ -256,11 +258,11 @@ set_views = function(x, bg, file_prefix = 'facilitator_database_view_') {
 
 update_views = function(auth, params) {
   # update the main file with the latest version of the dataset from surveycto
-  set_facilitators(auth, params$dataset_id, params$main_file_url)
+  set_dataset(auth, params$dataset_id, params$main_file_url)
 
-  # get the current and previous versions of all tables
-  tables_old = get_tables(params$mirror_file_url)
-  tables_new = get_tables(params$main_file_url)
+  # get the current and previous versions of relevant tables
+  tables_old = get_tables(params$mirror_file_url, params$dataset_id)
+  tables_new = get_tables(params$main_file_url, params$dataset_id)
 
   # check validity of tables
   msg = get_tables_validity(tables_new)
