@@ -94,9 +94,9 @@ get_tables_validity = function(x) {
   } else if (!identical(colnames(x$show_columns)[1:2], cols)) {
     paste('The first two columns of the `show_columns` sheet',
           'are not named "column_name" and "column_label".')
-  } else if (!setequal(colnames(x$facilitators), x$show_columns$column_name)) {
-    paste('Values of `column_name` in the `show_columns` sheet do not match',
-          'the column names of the `facilitators` dataset.')
+  } else if (!setequal(colnames(x[[dataset_id]]), x$show_columns$column_name)) {
+    glue('Values of `column_name` in the `show_columns` sheet do not match ',
+          'the column names of the `{dataset_id}` dataset.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
     paste('Values of `group_id` of the `groups` sheet do not match the',
           'column names (from C column onward) of the `show_columns` sheet.')
