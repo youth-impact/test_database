@@ -35,9 +35,8 @@ set_dataset = function(auth, dataset_id, file_url) {
 
 
 get_tables = function(
-    file_url, dataset_id,
-    view_sheets = c('groups', 'show_columns', 'sorting', 'viewers')) {
-  sheets = c(dataset_id, view_sheets)
+    file_url,
+    sheets = c('dataset', 'groups', 'show_columns', 'sorting', 'viewers')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_url, x)))
   names(tables) = sheets
   setorderv(tables$groups, 'group_id')
@@ -56,8 +55,6 @@ compare_tables = function(x, y) {
       ignore.col.order = ignore_col_order[i],
       ignore.row.order = ignore_row_order[i]))})
   names(eq) = names(x)
-  # eq = sapply(names(x), function(i) {
-  #   isTRUE(all.equal(x[[i]], y[[i]], check.attributes = FALSE))})
   return(eq)}
 
 
@@ -91,8 +88,8 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
   return(r)}
 
 
-get_tables_validity = function(x) {
-  dataset_id = names(x)[1L]
+get_tables_validity = function(x, dataset_id) {
+  # dataset_id = names(x)[1L]
   cols = c('column_name', 'column_label')
   group_cols = setdiff(colnames(x$show_columns), cols)
   viewer_cols = c('viewer_name', 'viewer_email', 'group_id')
@@ -109,7 +106,7 @@ get_tables_validity = function(x) {
   } else if (!identical(colnames(x$show_columns)[1:2], cols)) {
     paste('The first two columns of the `show_columns` sheet',
           'are not named "column_name" and "column_label".')
-  } else if (!setequal(colnames(x[[dataset_id]]), x$show_columns$column_name)) {
+  } else if (!setequal(colnames(x$dataset), x$show_columns$column_name)) {
     glue('Values of `column_name` in the `show_columns` sheet do not match ',
           'the column names of the `{dataset_id}` dataset.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
@@ -130,7 +127,7 @@ get_tables_validity = function(x) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
   } else {
-    get_sorting_validity(x$sorting, x[[1L]], dataset_id)}
+    get_sorting_validity(x$sorting, x$dataset, dataset_id)}
   return(r)}
 
 
@@ -234,8 +231,14 @@ sort_dataset = function(d, sorting) {
   return(d)}
 
 
-set_views = function(x, bg, file_prefix) {
-  dataset = sort_dataset(x[[1L]], x$sorting)
+get_view_prefix = function(main_file_url) {
+  r = drive_get(as_id(main_file_url))$name
+  r = gsub('main$', 'view', r)
+  return(r)}
+
+
+set_views = function(x, bg, prefix) {
+  dataset = sort_dataset(x$dataset, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
   for (i in 1:nrow(x$groups)) {
@@ -243,7 +246,7 @@ set_views = function(x, bg, file_prefix) {
     group_id_now = x$groups$group_id[i]
 
     # rename file
-    drive_rename(file_id, paste0(file_prefix, group_id_now), overwrite = TRUE)
+    drive_rename(file_id, glue('{prefix}_{group_id_now}'), overwrite = TRUE)
 
     # update contents
     idx = x$show_columns[[group_id_now]] == 1
@@ -277,16 +280,16 @@ update_views = function(auth, params) {
   set_dataset(auth, params$dataset_id, params$main_file_url)
 
   # get the current and previous versions of relevant tables
-  tables_old = get_tables(params$mirror_file_url, params$dataset_id)
-  tables_new = get_tables(params$main_file_url, params$dataset_id)
+  tables_old = get_tables(params$mirror_file_url)
+  tables_new = get_tables(params$main_file_url)
 
   # check validity of tables
-  msg = get_tables_validity(tables_new)
+  msg = get_tables_validity(tables_new, params$dataset_id)
   if (msg != 0) {
     set_status(params$main_file_url, msg)
     return(msg)}
 
-  # check whether anything has changed
+  # check whether anything has changed (ignores fill color)
   tables_eq = compare_tables(tables_new, tables_old)
   if (all(tables_eq)) {
     set_status(params$main_file_url, 'No updates necessary.')
@@ -294,13 +297,15 @@ update_views = function(auth, params) {
 
   # update the views
   bg = get_background(params$main_file_url, 'show_columns', 'A2:A')
-  set_views(tables_new, bg, params$view_file_prefix)
+  view_prefix = get_view_prefix(params$main_file_url)
+  set_views(tables_new, bg, view_prefix)
+
   msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
   msg = glue('Successfully updated views based on changes to {msg_end}.')
   set_status(params$main_file_url, msg)
 
   # update the mirror file
-  lapply(names(tables_new), function(i) {
+  r = lapply(names(tables_new), function(i) {
     write_sheet(tables_new[[i]], params$mirror_file_url, i)})
 
   return(msg)}
@@ -310,5 +315,5 @@ get_env_output = function(
     msg, file_url, sheet = 'maintainers', colname = 'email') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
-  r = glue('MESSAGE={msg}\nEMAIL_TO={emails}')
+  r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
   return(r)}

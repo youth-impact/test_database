@@ -17,6 +17,7 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
       SCTO_AUTH: ${{ secrets.SCTO_AUTH }}
+      RUN_URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
     steps:
       - uses: actions/checkout@v2
       - uses: r-lib/actions/setup-r@v2
@@ -32,7 +33,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: Youth Impact facilitator database
+          subject: Youth Impact ${{ github.event.repository.name }}
           to: ${{ env.EMAIL_TO }}
           from: Youth Impact Automation <youthimpactautomation@gmail.com>
           body: |
@@ -41,6 +42,9 @@ jobs:
             GitHub Actions ran and gave the following message:
 
             ${{ env.MESSAGE }}
+
+            ${{ env.RUN_URL }}
+            ${{ env.FILE_URL }}
 
             Take care,
             Youth Impact Automation
