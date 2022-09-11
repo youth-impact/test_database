@@ -31,7 +31,7 @@ auth = scto_auth(auth_file)
 
 set_dataset = function(auth, dataset_id, file_url) {
   d = scto_read(auth, dataset_id)
-  write_sheet(d, file_url, dataset_id)}
+  write_sheet(d, file_url, 'dataset')}
 
 
 get_tables = function(
