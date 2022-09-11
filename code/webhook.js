@@ -4,7 +4,7 @@
 // https://stackoverflow.com/questions/58359417/you-do-not-have-permission-to-call-urlfetchapp-fetch
 
 function atEdit(e) {
-  var sheets = ['groups', 'show_columns', 'sorting', 'viewers', 'surveycto'];
+  var sheets = ['groups', 'show_columns', 'sorting', 'viewers', 'data'];
   var sheet_now = e.range.getSheet().getName();
 
   if (sheets.includes(sheet_now)) {
