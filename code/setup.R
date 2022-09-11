@@ -39,8 +39,9 @@ get_tables = function(
     sheets = c('dataset', 'groups', 'show_columns', 'sorting', 'viewers')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_url, x)))
   names(tables) = sheets
-  setorderv(tables$groups, 'group_id')
-  tables$show_columns[is.na(column_label), column_label := column_name]
+  if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
+  if (nrow(tables$show_columns) > 0) {
+    tables$show_columns[is.na(column_label), column_label := column_name]}
   tables$viewers = unique(tables$viewers)
   return(tables)}
 
@@ -65,7 +66,7 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
           '"column_name" and "column_value".')
   } else if (!all(sorting$column_name %in% colnames(dataset))) {
     glue('The `column_name` column of the `sorting` sheet contains ',
-          'values that are not column names of the `{dataset_id}` dataset.')
+         'values that are not column names of the `{dataset_id}` dataset.')
   } else {
     ast = c('*ascending*', '*descending*')
     n = table(sorting[column_value %in% ast]$column_name)
@@ -79,9 +80,9 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
     if (any(n > 1)) {
       paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
             'is not the only `column_value` for a given `column_name`.')
-    } else if (nrow(fsetdiff(d1, d2)) > 0) {
+    } else if (nrow(d1) > 0 && nrow(fsetdiff(d1, d2)) > 0) {
       glue('The `sorting` sheet contains combinations of `column_name` and ',
-            '`column_value` not present in the `{dataset_id}` dataset.')
+           '`column_value` not present in the `{dataset_id}` dataset.')
     } else {
       0}}
 
@@ -108,7 +109,7 @@ get_tables_validity = function(x, dataset_id) {
           'are not named "column_name" and "column_label".')
   } else if (!setequal(colnames(x$dataset), x$show_columns$column_name)) {
     glue('Values of `column_name` in the `show_columns` sheet do not match ',
-          'the column names of the `{dataset_id}` dataset.')
+         'the column names of the `{dataset_id}` dataset.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
     paste('Values of `group_id` of the `groups` sheet do not match the',
           'column names (from C column onward) of the `show_columns` sheet.')
@@ -122,7 +123,7 @@ get_tables_validity = function(x, dataset_id) {
   } else if (!setequal(colnames(x$viewers), viewer_cols)) {
     paste('Column names of the `viewers` sheet are not',
           '"viewer_name", "viewer_email", and "group_id".')
-  # } else if (!setequal(x$viewers$group_id, group_cols)) {
+    # } else if (!setequal(x$viewers$group_id, group_cols)) {
   } else if (!all(x$viewers$group_id %in% group_cols)) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
