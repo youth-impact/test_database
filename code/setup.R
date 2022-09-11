@@ -305,7 +305,7 @@ update_views = function(auth, params) {
   set_status(params$main_file_url, msg)
 
   # update the mirror file
-  r = lapply(names(tables_new), function(i) {
+  r = lapply(names(tables_new)[!tables_eq], function(i) {
     write_sheet(tables_new[[i]], params$mirror_file_url, i)})
 
   return(msg)}

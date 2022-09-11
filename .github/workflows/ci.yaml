@@ -42,7 +42,7 @@ jobs:
 
             ${{ env.MESSAGE }}
 
-            $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+            ${{ GITHUB_SERVER_URL }}/${{ GITHUB_REPOSITORY }}/actions/runs/${{ GITHUB_RUN_ID }}
             ${{ env.FILE_URL }}
 
             Take care,
