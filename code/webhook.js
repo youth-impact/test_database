@@ -4,10 +4,11 @@
 // https://stackoverflow.com/questions/58359417/you-do-not-have-permission-to-call-urlfetchapp-fetch
 
 function atEdit(e) {
-  var sheets = ['groups', 'show_columns', 'sorting', 'viewers', 'data'];
+  var sheets = ['groups', 'show_columns', 'sorting', 'viewers', 'github', 'data'];
   var sheet_now = e.range.getSheet().getName();
+  var enabled = e.source.getSheetByName('github').getRange('B2').getValue();
 
-  if (sheets.includes(sheet_now)) {
+  if (enabled == 1 && sheets.includes(sheet_now)) {
     var repo_url = e.source.getSheetByName('github').getRange('A2').getValue();
     var url = repo_url.replace('github\.com', 'api.github.com/repos') + '/dispatches';
 
