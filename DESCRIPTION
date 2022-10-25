@@ -10,6 +10,7 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.1
 Imports:
   bit64,
+  cli,
   data.table,
   gargle,
   glue,
