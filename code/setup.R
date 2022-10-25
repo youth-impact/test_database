@@ -1,3 +1,4 @@
+library('cli')
 library('data.table')
 library('glue')
 library('googledrive')
@@ -29,15 +30,19 @@ auth = scto_auth(auth_file)
 
 ########################################
 
-set_dataset = function(auth, dataset_id, file_url) {
+set_dataset = function(auth, dataset_id, file_id) {
   d = scto_read(auth, dataset_id)
-  write_sheet(d, file_url, 'dataset')}
+  # formdef_version could be integer64, which write_sheets can't handle
+  cols = which(sapply(d, bit64::is.integer64))
+  for (col in cols) {
+    set(d, j = col, value = as.character(d[[col]]))}
+  write_sheet(d, file_id, 'dataset')}
 
 
 get_tables = function(
-    file_url,
+    file_id,
     sheets = c('dataset', 'groups', 'show_columns', 'sorting', 'viewers')) {
-  tables = lapply(sheets, function(x) setDT(read_sheet(file_url, x)))
+  tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
   if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
   if (nrow(tables$show_columns) > 0) {
@@ -107,12 +112,18 @@ get_tables_validity = function(x, dataset_id) {
   } else if (!identical(colnames(x$show_columns)[1:2], cols)) {
     paste('The first two columns of the `show_columns` sheet',
           'are not named "column_name" and "column_label".')
-  } else if (!setequal(colnames(x$dataset), x$show_columns$column_name)) {
-    glue('Values of `column_name` in the `show_columns` sheet do not match ',
-         'the column names of the `{dataset_id}` dataset.')
+  # } else if (!setequal(colnames(x$dataset), x$show_columns$column_name)) {
+  #   glue('Values of `column_name` in the `show_columns` sheet do not match ',
+  #        'the column names of the `{dataset_id}` dataset.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
     paste('Values of `group_id` of the `groups` sheet do not match the',
           'column names (from C column onward) of the `show_columns` sheet.')
+  } else if (anyDuplicated(x$show_columns$column_name) != 0) {
+    paste('The `column_name` column of the `show_columns`',
+          'sheet contains duplicated values.')
+  } else if (!all(x$show_columns$column_name %in% colnames(x$dataset))) {
+    glue('The `column_name` column of the `show_columns` sheet contains values',
+         ' not present in the column names of the `{dataset_id}` dataset.')
   } else if (anyDuplicated(x$show_columns$column_label) != 0) {
     paste('The `column_label` column of the `show_columns`',
           'sheet contains duplicated values.')
@@ -132,12 +143,12 @@ get_tables_validity = function(x, dataset_id) {
   return(r)}
 
 
-set_status = function(file_url, msg, sheet = 'status') {
+set_status = function(file_id, msg, sheet = 'status') {
   status = data.table(
     last_checked_utc = Sys.time(),
     message = msg)
-  write_sheet(status, file_url, sheet = sheet)
-  range_autofit(file_url, sheet = sheet)}
+  write_sheet(status, file_id, sheet = sheet)
+  range_autofit(file_id, sheet = sheet)}
 
 ########################################
 
@@ -170,8 +181,7 @@ drive_share_remove = function(file_id, user_ids) {
 
 
 get_background = function(file_id, sheet, range, nonwhite = TRUE) {
-  bg = setDT(range_read_cells(
-    params$main_file_url, sheet, range, cell_data = 'full'))
+  bg = setDT(range_read_cells(file_id, sheet, range, cell_data = 'full'))
   for (p in c('red', 'green', 'blue')) {
     y = lapply(bg$cell, function(z) z$effectiveFormat$backgroundColor[[p]])
     y = sapply(y, function(z) if (is.null(z)) 0 else z)
@@ -232,8 +242,8 @@ sort_dataset = function(d, sorting) {
   return(d)}
 
 
-get_view_prefix = function(main_file_url) {
-  r = drive_get(as_id(main_file_url))$name
+get_view_prefix = function(file_id) {
+  r = drive_get(file_id)$name
   r = gsub('main$', 'view', r)
   return(r)}
 
@@ -277,37 +287,54 @@ set_views = function(x, bg, prefix) {
 ########################################
 
 update_views = function(auth, params) {
+  main_id = as_id(params$main_file_url)
+  mirror_id = as_id(params$mirror_file_url)
+  cli_alert_success('Created file ids from file urls.')
+
   # update the main file with the latest version of the dataset from surveycto
-  set_dataset(auth, params$dataset_id, params$main_file_url)
+  set_dataset(auth, params$dataset_id, main_id)
+  cli_alert_success('Updated dataset sheet in main file.')
 
   # get the current and previous versions of relevant tables
-  tables_old = get_tables(params$mirror_file_url)
-  tables_new = get_tables(params$main_file_url)
+  tables_old = get_tables(mirror_id)
+  cli_alert_success('Fetched tables from mirror file.')
+  tables_new = get_tables(main_id)
+  cli_alert_success('Fetched tables from main file.')
 
   # check validity of tables
   msg = get_tables_validity(tables_new, params$dataset_id)
+  cli_alert_success('Checked validity of tables.')
   if (msg != 0) {
-    set_status(params$main_file_url, msg)
+    set_status(main_id, msg)
+    cli_alert_success('Set status sheet of main file.')
     return(msg)}
 
   # check whether anything has changed (ignores fill color)
   tables_eq = compare_tables(tables_new, tables_old)
+  cli_alert_success('Compared main and mirror tables.')
   if (all(tables_eq)) {
-    set_status(params$main_file_url, 'No updates necessary.')
+    set_status(main_id, 'No updates necessary.')
+    cli_alert_success('Set status sheet of main file.')
     return(0)}
 
   # update the views
-  bg = get_background(params$main_file_url, 'show_columns', 'A2:A')
-  view_prefix = get_view_prefix(params$main_file_url)
+  bg = get_background(main_id, 'show_columns', 'A2:A')
+  cli_alert_success('Got background colors.')
+  view_prefix = get_view_prefix(main_id)
+  cli_alert_success('Got prefix for view files.')
   set_views(tables_new, bg, view_prefix)
+  cli_alert_success('Wrote tables to view files.')
 
   msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
+  msg_end = gsub()
   msg = glue('Successfully updated views based on changes to {msg_end}.')
-  set_status(params$main_file_url, msg)
+  set_status(main_id, msg)
+  cli_alert_success('Set status sheet of main file.')
 
   # update the mirror file
   r = lapply(names(tables_new)[!tables_eq], function(i) {
-    write_sheet(tables_new[[i]], params$mirror_file_url, i)})
+    write_sheet(tables_new[[i]], mirror_id, i)})
+  cli_alert_success('Wrote tables to mirror file.')
 
   return(msg)}
 
